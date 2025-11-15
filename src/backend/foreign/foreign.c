@@ -323,6 +323,8 @@ GetFdwRoutine(Oid fdwhandler)
 {
 	Datum		datum;
 	FdwRoutine *routine;
+	elog(LOG, "fdwroutine");
+	elog(LOG, "fdwhandler oid = %u", fdwhandler);
 
 	/* Check if the access to foreign tables is restricted */
 	if (unlikely((restrict_nonsystem_relation_kind & RESTRICT_RELKIND_FOREIGN_TABLE) != 0))

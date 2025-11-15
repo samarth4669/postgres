@@ -53,6 +53,138 @@
 
 PG_MODULE_MAGIC;
 
+
+/* ---------- ADDITIONAL INCLUDES (if not already present near top of postgres_fdw.c) ---------- */
+#include "access/htup_details.h"
+#include "executor/spi.h"
+#include "lib/stringinfo.h"
+#include "fmgr.h"
+#include "catalog/pg_type.h"
+#include "utils/builtins.h"
+#include "utils/lsyscache.h"
+
+/* ---------- Helper: fetch primary key column names from remote server ---------- */
+/*
+ * fetch_remote_primary_keys(conn, remote_schema, relname)
+ *
+ * Uses the existing libpq PGconn *conn to query remote pg_index/pg_attribute
+ * and returns a List * of duplicated C strings (pstrdup) containing PK column names.
+ * Caller owns the list and should free with list_free_deep() if desired.
+ */
+
+// new added 
+/*
+ * Fetch primary key column names for a remote table.
+ */
+static List *
+fetch_remote_primary_keys(PGconn *conn, PgFdwConnState *state,
+                          const char *nspname, const char *relname)
+{
+    StringInfoData sql;
+    PGresult *res;
+    List *pkcols = NIL;
+    int i;
+
+    initStringInfo(&sql);
+    appendStringInfo(&sql,
+        "SELECT a.attname "
+        "FROM pg_index i "
+        "JOIN pg_attribute a ON a.attrelid = i.indrelid "
+        "AND a.attnum = ANY(i.indkey) "
+        "WHERE i.indisprimary "
+        "AND i.indrelid = '%s.%s'::regclass;",
+        quote_identifier(nspname), quote_identifier(relname));
+
+    /* Use FDW helper to execute remote query safely */
+    res = pgfdw_exec_query(conn, sql.data, state);
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+        ereport(ERROR,
+                (errmsg("failed to fetch primary key columns for %s.%s",
+                        nspname, relname)));
+
+    for (i = 0; i < PQntuples(res); i++)
+        pkcols = lappend(pkcols, pstrdup(PQgetvalue(res, i, 0)));
+
+    PQclear(res);
+    pfree(sql.data);
+
+    return pkcols;
+}
+
+/* ---------- Helper: store pk list into local catalog table using SPI ---------- */
+/*
+ * store_local_foreign_table_pks(serverOid, remote_schema, relname, pkcols)
+ *
+ * Inserts or updates row in foreign_table_pkeys for this server/schema/table.
+ * Uses SPI to run local SQL within backend.
+ */
+static void
+store_local_foreign_table_pks(Oid serverOid, const char *remote_schema, const char *relname, List *pkcols)
+{
+    StringInfoData q;
+    int ret;
+
+    /* Convert List *pkcols (list of char*) into SQL array literal text */
+    StringInfoData arr;
+    ListCell *lc;
+    bool first = true;
+
+    initStringInfo(&arr);
+    appendStringInfoChar(&arr, '{');
+
+    foreach(lc, pkcols)
+    {
+        char *c = (char *) lfirst(lc);
+        if (!first)
+            appendStringInfoChar(&arr, ',');
+        /* Escape double quotes and backslashes in column name per array literal rules */
+        appendStringInfo(&arr, "\"%s\"", escape_identifier(c));
+        first = false;
+    }
+    appendStringInfoChar(&arr, '}');
+
+    /* Compose upsert SQL (insert ... on conflict do update) */
+    initStringInfo(&q);
+    appendStringInfo(&q,
+        "INSERT INTO foreign_table_pkeys (foreign_server_oid, foreign_schema, foreign_table, pk_columns) "
+        "VALUES (%u, %s, %s, %s) "
+        "ON CONFLICT (foreign_server_oid, foreign_schema, foreign_table) DO UPDATE "
+        "SET pk_columns = EXCLUDED.pk_columns;",
+        serverOid,
+        quote_literal_cstr(remote_schema),
+        quote_literal_cstr(relname),
+        quote_literal_cstr(arr.data)
+    );
+
+    /* Run via SPI */
+    if ((ret = SPI_connect()) != SPI_OK_CONNECT)
+        elog(ERROR, "store_local_foreign_table_pks: SPI_connect failed: %d", ret);
+
+    ret = SPI_execute(q.data, false, 0);
+    if (ret != SPI_OK_INSERT && ret != SPI_OK_INSERT_RETURNING && ret != SPI_OK_SELECT)
+    {
+        SPI_finish();
+        elog(ERROR, "store_local_foreign_table_pks: SPI_execute failed: %d sql: %s", ret, q.data);
+    }
+
+    SPI_finish();
+}
+
+/* ---------- Utilities used above (if not present) ---------- */
+/* quote_literal_cstr - returns properly quoted literal for SQL built in backend context */
+
+/* escape_identifier - escape double quotes in identifiers for array quoting */
+
+/* The quote_literal_cstr_safe helper simply returns the quoted literal using quote_literal_cstr from utils/builtins.
+   If your version already exposes quote_literal_cstr, you can use it directly. Otherwise implement with quote_literal.
+*/
+static char *
+quote_literal_cstr_safe(const char *s)
+{
+    return quote_literal_cstr_internal(s); /* if not available, replace with quote_literal(s) usage */
+}
+
 /* Default CPU cost to start up a foreign query. */
 #define DEFAULT_FDW_STARTUP_COST	100.0
 
@@ -551,7 +683,9 @@ static int	get_batch_size_option(Relation rel);
  */
 Datum
 postgres_fdw_handler(PG_FUNCTION_ARGS)
+
 {
+	elog(LOG, "fdw");
 	FdwRoutine *routine = makeNode(FdwRoutine);
 
 	/* Functions for scanning foreign tables */
@@ -5443,12 +5577,14 @@ analyze_row_processor(PGresult *res, int row, PgFdwAnalyzeState *astate)
 	}
 }
 
-/*
- * Import a foreign schema
- */
+// /*
+//  * Import a foreign schema
+// */
 static List *
 postgresImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 {
+	elog(LOG, "executing---");
+
 	List	   *commands = NIL;
 	bool		import_collate = true;
 	bool		import_default = false;
@@ -5725,6 +5861,14 @@ postgresImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 			deparseStringLiteral(&buf, tablename);
 
 			appendStringInfoString(&buf, ");");
+			//added
+			elog(LOG, "executing---");
+			List *pkcols = fetch_remote_primary_keys(conn, NULL, stmt->remote_schema, tablename);
+			if (pkcols != NIL)
+			{
+				store_local_foreign_table_pks(serverOid, stmt->remote_schema, tablename, pkcols);
+				list_free_deep(pkcols);
+			}
 
 			commands = lappend(commands, pstrdup(buf.data));
 		}

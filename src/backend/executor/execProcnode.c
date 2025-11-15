@@ -70,6 +70,7 @@
  *		their work to the appropriate node support routines which may
  *		in turn call these routines themselves on their subplans.
  */
+
 #include "postgres.h"
 
 #include "executor/executor.h"
@@ -119,9 +120,65 @@
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 
+//
+#include "catalog/pg_index.h"
+#include "catalog/indexing.h"
+#include "catalog/pg_constraint.h"
+#include "utils/syscache.h"
 static TupleTableSlot *ExecProcNodeFirst(PlanState *node);
 static TupleTableSlot *ExecProcNodeInstr(PlanState *node);
 static bool ExecShutdownNode_walker(PlanState *node, void *context);
+
+
+#include "catalog/pg_index.h"
+#include "catalog/indexing.h"
+#include "catalog/pg_constraint.h"
+#include "utils/syscache.h"
+#include "nodes/params.h"
+
+
+#include "postgres.h"
+#include "nodes/parsenodes.h"
+#include "nodes/nodeFuncs.h"
+#include "utils/lsyscache.h"
+#include "catalog/pg_type.h"
+#include "catalog/pg_attribute.h"
+#include "catalog/pg_class.h"
+#include "utils/syscache.h"
+#include "utils/rel.h"
+#include "executor/executor.h"
+#include "utils/builtins.h"
+
+#include "postgres.h"
+#include "nodes/parsenodes.h"
+#include "nodes/nodeFuncs.h"
+#include "utils/lsyscache.h"
+#include "utils/builtins.h"
+#include "catalog/pg_type.h"
+#include "catalog/pg_class.h"
+#include "catalog/pg_attribute.h"
+#include "utils/rel.h"
+#include "utils/syscache.h"
+
+/* Recursive logger for WHERE clause */
+#include "postgres.h"
+#include "nodes/nodes.h"
+#include "nodes/pg_list.h"
+#include "nodes/parsenodes.h"
+#include "nodes/primnodes.h"
+#include "nodes/nodeFuncs.h"
+#include "utils/builtins.h"
+#include "utils/lsyscache.h"
+#include "utils/rel.h"
+#include "nodes/parsenodes.h"
+#include "parser/parsetree.h"
+
+#include "utils/lsyscache.h"   /* for getTypeOutputInfo() */
+#include "utils/builtins.h"    /* for OidOutputFunctionCall() */
+#include "nodes/makefuncs.h"
+#include "catalog/pg_type.h"   /* for type OIDs */
+#include "utils/array.h"   /* For ARR_ELEMTYPE, ARR_DIMS, etc. */
+#include "catalog/namespace.h"
 
 
 /* ------------------------------------------------------------------------
@@ -282,8 +339,8 @@ ExecInitNode(Plan *node, EState *estate, int eflags)
 			break;
 
 		case T_ForeignScan:
-			result = (PlanState *) ExecInitForeignScan((ForeignScan *) node,
-													   estate, eflags);
+		    result = (PlanState *) ExecInitForeignScan((ForeignScan *)node, estate, eflags);
+
 			break;
 
 		case T_CustomScan:

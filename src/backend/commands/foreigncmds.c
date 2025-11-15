@@ -1407,6 +1407,7 @@ RemoveUserMapping(DropUserMappingStmt *stmt)
 }
 
 
+
 /*
  * Create a foreign table
  * call after DefineRelation().
@@ -1494,6 +1495,7 @@ CreateForeignTable(CreateForeignTableStmt *stmt, Oid relid)
 void
 ImportForeignSchema(ImportForeignSchemaStmt *stmt)
 {
+	elog(LOG, "checking____");
 	ForeignServer *server;
 	ForeignDataWrapper *fdw;
 	FdwRoutine *fdw_routine;
@@ -1526,7 +1528,7 @@ ImportForeignSchema(ImportForeignSchemaStmt *stmt)
 
 	/* Call FDW to get a list of commands */
 	cmd_list = fdw_routine->ImportForeignSchema(stmt, server->serverid);
-
+     
 	/* Parse and execute each command */
 	foreach(lc, cmd_list)
 	{
@@ -1596,6 +1598,7 @@ ImportForeignSchema(ImportForeignSchemaStmt *stmt)
 
 			/* Be sure to advance the command counter between subcommands */
 			CommandCounterIncrement();
+			
 
 			callback_arg.tablename = NULL;
 		}

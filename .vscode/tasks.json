@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "configure-postgres",
+      "type": "shell",
+      "command": "./configure --prefix=$HOME/pgsql-dev --enable-debug CFLAGS=\"-g -O0 -ggdb\"",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "build-postgres",
+      "type": "shell",
+      "command": "make -j${env:NUMBER_OF_PROCESSORS:-$(nproc)}",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "build", "isDefault": true },
+      "dependsOn": ["configure-postgres"],
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "install-postgres",
+      "type": "shell",
+      "command": "make install",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "initdb",
+      "type": "shell",
+      "command": "${env:HOME}/pgsql-dev/bin/initdb -D ${env:HOME}/pgdata",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "start-postgres",
+      "type": "shell",
+      "command": "${env:HOME}/pgsql-dev/bin/pg_ctl -D ${env:HOME}/pgdata -l ${env:HOME}/pgdata/logfile start",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "stop-postgres",
+      "type": "shell",
+      "command": "${env:HOME}/pgsql-dev/bin/pg_ctl -D ${env:HOME}/pgdata stop",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}

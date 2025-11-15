@@ -52,7 +52,10 @@ typedef struct QueryDesc
 	bool		already_executed;	/* true if previously executed */
 
 	/* This is always set NULL by the core system, but plugins can change it */
-	struct Instrumentation *totaltime;	/* total time spent in ExecutorRun */
+	struct Instrumentation *totaltime;
+		/* total time spent in ExecutorRun */
+	struct Query *origQuery;   /* <-- ADD THIS LINE */
+
 } QueryDesc;
 
 /* in pquery.c */

@@ -1,0 +1,79 @@
+2025-11-04 01:46:33.182 UTC [497042] LOG:  checkpoint starting: time
+2025-11-04 01:46:33.224 UTC [497042] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.010 s, sync=0.005 s, total=0.043 s; sync files=2, longest=0.003 s, average=0.003 s; distance=0 kB, estimate=0 kB; lsn=0/15A36F8, redo lsn=0/15A36C0
+2025-11-04 08:02:04.811 UTC [497041] LOG:  received fast shutdown request
+2025-11-04 08:02:04.823 UTC [497041] LOG:  aborting any active transactions
+2025-11-04 08:02:04.831 UTC [497041] LOG:  background worker "logical replication launcher" (PID 497047) exited with exit code 1
+2025-11-04 08:02:04.834 UTC [497049] FATAL:  terminating connection due to administrator command
+2025-11-04 08:02:04.834 UTC [497151] FATAL:  terminating connection due to administrator command
+2025-11-04 08:02:04.856 UTC [497042] LOG:  shutting down
+2025-11-04 08:02:04.868 UTC [497042] LOG:  checkpoint starting: shutdown immediate
+2025-11-04 08:02:04.948 UTC [497042] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.044 s, sync=0.001 s, total=0.090 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=0 kB; lsn=0/15A37A8, redo lsn=0/15A37A8
+2025-11-04 08:02:04.964 UTC [497041] LOG:  database system is shut down
+2025-11-06 18:51:50.662 UTC [661739] LOG:  starting PostgreSQL 16.10 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0, 64-bit
+2025-11-06 18:51:50.664 UTC [661739] LOG:  listening on IPv4 address "127.0.0.1", port 5433
+2025-11-06 18:51:50.672 UTC [661739] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5433"
+2025-11-06 18:51:50.679 UTC [661742] LOG:  database system was shut down at 2025-11-06 18:51:50 UTC
+2025-11-06 18:51:50.686 UTC [661739] LOG:  database system is ready to accept connections
+2025-11-06 18:52:24.198 UTC [661747] LOG:  ---- Inspecting Query ----
+2025-11-06 18:52:24.198 UTC [661747] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 18:52:25.050 UTC [661739] LOG:  server process (PID 661747) was terminated by signal 11: Segmentation fault
+2025-11-06 18:52:25.050 UTC [661739] DETAIL:  Failed process was running: select * from foreign_schema.target_table where id=2;
+2025-11-06 18:52:25.050 UTC [661739] LOG:  terminating any other active server processes
+2025-11-06 18:52:25.051 UTC [661761] FATAL:  the database system is in recovery mode
+2025-11-06 18:52:25.052 UTC [661739] LOG:  all server processes terminated; reinitializing
+2025-11-06 18:52:25.076 UTC [661763] LOG:  database system was interrupted; last known up at 2025-11-06 18:51:50 UTC
+2025-11-06 18:52:25.453 UTC [661763] LOG:  database system was not properly shut down; automatic recovery in progress
+2025-11-06 18:52:25.458 UTC [661763] LOG:  redo starts at 0/15B49F8
+2025-11-06 18:52:25.459 UTC [661763] LOG:  invalid record length at 0/15B4A30: expected at least 24, got 0
+2025-11-06 18:52:25.459 UTC [661763] LOG:  redo done at 0/15B49F8 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2025-11-06 18:52:25.465 UTC [661764] LOG:  checkpoint starting: end-of-recovery immediate wait
+2025-11-06 18:52:25.488 UTC [661764] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.006 s, sync=0.003 s, total=0.027 s; sync files=2, longest=0.002 s, average=0.002 s; distance=0 kB, estimate=0 kB; lsn=0/15B4A30, redo lsn=0/15B4A30
+2025-11-06 18:52:25.493 UTC [661739] LOG:  database system is ready to accept connections
+2025-11-06 18:55:39.357 UTC [661739] LOG:  received fast shutdown request
+2025-11-06 18:55:39.361 UTC [661739] LOG:  aborting any active transactions
+2025-11-06 18:55:39.362 UTC [661739] LOG:  background worker "logical replication launcher" (PID 661768) exited with exit code 1
+2025-11-06 18:55:39.363 UTC [661764] LOG:  shutting down
+2025-11-06 18:55:39.366 UTC [661764] LOG:  checkpoint starting: shutdown immediate
+2025-11-06 18:55:39.381 UTC [661764] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.001 s, total=0.019 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=0 kB; lsn=0/15B4AE0, redo lsn=0/15B4AE0
+2025-11-06 18:55:39.384 UTC [661739] LOG:  database system is shut down
+2025-11-06 19:48:48.844 UTC [671741] LOG:  starting PostgreSQL 16.10 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0, 64-bit
+2025-11-06 19:48:48.846 UTC [671741] LOG:  listening on IPv4 address "127.0.0.1", port 5433
+2025-11-06 19:48:48.855 UTC [671741] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5433"
+2025-11-06 19:48:48.864 UTC [671744] LOG:  database system was shut down at 2025-11-06 19:48:48 UTC
+2025-11-06 19:48:48.870 UTC [671741] LOG:  database system is ready to accept connections
+2025-11-06 19:49:18.289 UTC [671757] LOG:  ---- Inspecting Query ----
+2025-11-06 19:49:18.289 UTC [671757] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:18.289 UTC [671757] LOG:  where lookup query
+2025-11-06 19:49:18.289 UTC [671757] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:18.289 UTC [671757] LOG:  Foreign table: target_table
+2025-11-06 19:49:18.289 UTC [671757] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:18.289 UTC [671757] LOG:  Foreign table: target_table, Cache table: target_table_cache
+2025-11-06 19:49:18.289 UTC [671757] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:18.291 UTC [671757] LOG:  Foreign table_schema: foreign_schema
+2025-11-06 19:49:18.291 UTC [671757] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:18.291 UTC [671757] LOG:  Cache table OID: 16406
+2025-11-06 19:49:18.291 UTC [671757] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:18.291 UTC [671757] LOG:  [CACHE] Extracted key value: '2))'
+2025-11-06 19:49:18.291 UTC [671757] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:18.291 UTC [671757] LOG:  [CACHE] Text key detected: '2))'
+2025-11-06 19:49:18.291 UTC [671757] STATEMENT:  select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:19.634 UTC [671741] LOG:  server process (PID 671757) was terminated by signal 11: Segmentation fault
+2025-11-06 19:49:19.634 UTC [671741] DETAIL:  Failed process was running: select * from foreign_schema.target_table where id=2;
+2025-11-06 19:49:19.634 UTC [671741] LOG:  terminating any other active server processes
+2025-11-06 19:49:19.635 UTC [671770] FATAL:  the database system is in recovery mode
+2025-11-06 19:49:19.636 UTC [671741] LOG:  all server processes terminated; reinitializing
+2025-11-06 19:49:19.666 UTC [671772] LOG:  database system was interrupted; last known up at 2025-11-06 19:48:48 UTC
+2025-11-06 19:49:20.054 UTC [671772] LOG:  database system was not properly shut down; automatic recovery in progress
+2025-11-06 19:49:20.057 UTC [671772] LOG:  redo starts at 0/15B5318
+2025-11-06 19:49:20.057 UTC [671772] LOG:  invalid record length at 0/15B5350: expected at least 24, got 0
+2025-11-06 19:49:20.057 UTC [671772] LOG:  redo done at 0/15B5318 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2025-11-06 19:49:20.064 UTC [671773] LOG:  checkpoint starting: end-of-recovery immediate wait
+2025-11-06 19:49:20.086 UTC [671773] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.006 s, sync=0.004 s, total=0.025 s; sync files=2, longest=0.002 s, average=0.002 s; distance=0 kB, estimate=0 kB; lsn=0/15B5350, redo lsn=0/15B5350
+2025-11-06 19:49:20.090 UTC [671741] LOG:  database system is ready to accept connections
+2025-11-06 19:50:28.140 UTC [671741] LOG:  received fast shutdown request
+2025-11-06 19:50:28.145 UTC [671741] LOG:  aborting any active transactions
+2025-11-06 19:50:28.146 UTC [671741] LOG:  background worker "logical replication launcher" (PID 671777) exited with exit code 1
+2025-11-06 19:50:28.146 UTC [671773] LOG:  shutting down
+2025-11-06 19:50:28.152 UTC [671773] LOG:  checkpoint starting: shutdown immediate
+2025-11-06 19:50:28.171 UTC [671773] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.001 s, total=0.025 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=0 kB; lsn=0/15B5400, redo lsn=0/15B5400
+2025-11-06 19:50:28.174 UTC [671741] LOG:  database system is shut down

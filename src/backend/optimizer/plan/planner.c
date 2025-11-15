@@ -280,6 +280,7 @@ planner(Query *parse, const char *query_string, int cursorOptions,
 		result = (*planner_hook) (parse, query_string, cursorOptions, boundParams);
 	else
 		result = standard_planner(parse, query_string, cursorOptions, boundParams);
+	
 	return result;
 }
 

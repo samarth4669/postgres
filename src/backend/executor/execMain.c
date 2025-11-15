@@ -185,6 +185,8 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
 	 * Fill in external parameters, if any, from queryDesc; and allocate
 	 * workspace for internal parameters
 	 */
+	estate->origQuery = queryDesc->origQuery;
+
 	estate->es_param_list_info = queryDesc->params;
 
 	if (queryDesc->plannedstmt->paramExecTypes != NIL)

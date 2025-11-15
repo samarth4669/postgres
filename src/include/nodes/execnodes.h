@@ -716,6 +716,8 @@ typedef struct EState
 	 */
 	List	   *es_insert_pending_result_relations;
 	List	   *es_insert_pending_modifytables;
+	struct Query *origQuery;  /* <-- ADD THIS */
+
 } EState;
 
 
@@ -1954,7 +1956,13 @@ typedef struct WorkTableScanState
  *
  *		ForeignScan nodes are used to scan foreign-data tables.
  * ----------------
+ * 
+ * 
  */
+typedef struct MyFdwScanState
+{
+    bool cache_returned;  /* whether cached tuple already returned */
+} MyFdwScanState;
 typedef struct ForeignScanState
 {
 	ScanState	ss;				/* its first field is NodeTag */
@@ -1963,7 +1971,17 @@ typedef struct ForeignScanState
 	ResultRelInfo *resultRelInfo;	/* result rel info, if UPDATE or DELETE */
 	/* use struct pointer to avoid including fdwapi.h here */
 	struct FdwRoutine *fdwroutine;
-	void	   *fdw_state;		/* foreign-data wrapper can keep state here */
+	void	   *fdw_state;	
+	int cache_status;
+    
+    int query_type;
+	 bool    key_is_numeric;   /* true if key_value is valid, false if key_text is used */
+
+    long    key_value;        /* used when key_is_numeric = true */
+    char   *key_text;
+	MyFdwScanState f_state;
+
+		/* foreign-data wrapper can keep state here */
 } ForeignScanState;
 
 /* ----------------

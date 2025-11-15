@@ -1,0 +1,5 @@
+# local_cache_rewrite.control
+comment = 'Planner hook to redirect foreign table scans to local cache'
+default_version = '1.0'
+relocatable = true
+module_pathname = '$libdir/local_cache_rewrite'

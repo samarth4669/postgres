@@ -91,6 +91,7 @@ CreateQueryDesc(PlannedStmt *plannedstmt,
 	qd->estate = NULL;
 	qd->planstate = NULL;
 	qd->totaltime = NULL;
+    qd->origQuery = plannedstmt->origQuery;   /* propagate here */
 
 	/* not yet executed */
 	qd->already_executed = false;
