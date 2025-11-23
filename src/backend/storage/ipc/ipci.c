@@ -49,6 +49,7 @@
 #include "storage/spin.h"
 #include "utils/guc.h"
 #include "utils/snapmgr.h"
+#include "utils/foreign_cache.h"
 
 /* GUCs */
 int			shared_memory_type = DEFAULT_SHARED_MEMORY_TYPE;
@@ -234,6 +235,11 @@ CreateSharedMemoryAndSemaphores(void)
 	InitShmemIndex();
 
 	dsm_shmem_init();
+    /*
+ * Initialize shared-memory foreign cache hash table
+ * (tracks row-count per cache table)
+ */
+ForeignCacheShmemInit();
 
 	/*
 	 * Set up xlog, clog, and buffers

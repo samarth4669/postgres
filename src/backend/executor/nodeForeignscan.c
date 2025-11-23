@@ -21,6 +21,7 @@
  *		ExecEndForeignScan		releases any resources allocated.
  */
 #include "postgres.h"
+#include "executor/spi.h"
 
 #include "executor/executor.h"
 #include "executor/nodeForeignscan.h"
@@ -111,7 +112,7 @@
 #include "utils/rel.h"
 #include "utils/lsyscache.h"
 #include "nodes/pg_list.h"
-
+#include "utils/foreign_cache.h"
 static Oid cache_relid_global = InvalidOid;
 
 typedef struct KeyLookupInfo
@@ -805,51 +806,106 @@ cache_insert_tuple(TupleTableSlot *slot, ForeignScanState *node)
         elog(WARNING, "Cache table %s not found, skipping insert", cache_name);
         return;
     }
+     /* Look up / create per-cache-table entry in shared hash */
+    CacheEntry *entry = GetCacheEntryForCacheRel(cache_relid);
 
     cache_rel = table_open(cache_relid, RowExclusiveLock);
 
 	
     TableScanDesc scan;
+    int current = entry->count;
 
 	int rowcount = 0;
 
 	/* Begin catalog table scan */
-	scan = table_beginscan_catalog(cache_rel, 0, NULL);
+	// scan = table_beginscan_catalog(cache_rel, 0, NULL);
 
-	/* Iterate over tuples */
-	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-	{
-		rowcount++;
-	}
+	// /* Iterate over tuples */
+	// while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
+	// {
+	// 	rowcount++;
+	// }
 
-	/* End scan */
-	table_endscan(scan);
-	elog(LOG, "row_count:%d", rowcount);
-	if (rowcount >= 10)
-    {
-        SPI_connect();
-		const char *schema_name = get_namespace_name(RelationGetNamespace(cache_rel));
-		const char *rel_name = RelationGetRelationName(cache_rel);
-                char cmd[512];
+	// /* End scan */
+	// table_endscan(scan);
+	// elog(LOG, "row_count:%d", rowcount);
+	// if (rowcount >= 10)
+    // {
+    //     SPI_connect();
+	// 	const char *schema_name = get_namespace_name(RelationGetNamespace(cache_rel));
+	// 	const char *rel_name = RelationGetRelationName(cache_rel);
+    //             char cmd[512];
 
-		snprintf(cmd, sizeof(cmd),
-				"DELETE FROM %s.%s WHERE ctid IN "
-				"(SELECT ctid FROM %s.%s ORDER BY ctid ASC LIMIT %d)",
-				schema_name, rel_name,
-				schema_name, rel_name,
-				rowcount - 10 + 1);
+	// 	snprintf(cmd, sizeof(cmd),
+	// 			"DELETE FROM %s.%s WHERE ctid IN "
+	// 			"(SELECT ctid FROM %s.%s ORDER BY ctid ASC LIMIT %d)",
+	// 			schema_name, rel_name,
+	// 			schema_name, rel_name,
+	// 			rowcount - 10 + 1);
         
-        SPI_exec(cmd, 0);
+    //     SPI_exec(cmd, 0);
+    //     SPI_finish();
+    // }
+
+
+	// /* Materialize slot and copy tuple */
+    // ExecMaterializeSlot(slot);
+    // tuple = ExecCopySlotHeapTuple(slot);
+
+    // /* Insert into heap and update indexes */
+    // simple_heap_insert(cache_rel, tuple);
+
+    // table_close(cache_rel, RowExclusiveLock);
+    elog(LOG, "tuple%d",current);
+
+    if (current >=3 )
+    {
+        const char *schema_name   = get_namespace_name(RelationGetNamespace(cache_rel));
+        const char *cache_relname = RelationGetRelationName(cache_rel);
+        char        cmd[512];
+        int         excess = current - 3 + 1;
+
+        elog(LOG, "cache_insert_tuple: cache %s.%s over limit (%d >= %d), deleting %d row(s)",
+             schema_name, cache_relname, current,10, excess);
+
+        snprintf(cmd, sizeof(cmd),
+                 "DELETE FROM %s.%s WHERE ctid IN "
+                 "(SELECT ctid FROM %s.%s ORDER BY ctid ASC LIMIT %d)",
+                 schema_name, cache_relname,
+                 schema_name, cache_relname,
+                 excess);
+
+        if (SPI_connect() != SPI_OK_CONNECT)
+            elog(ERROR, "cache_insert_tuple: SPI_connect failed");
+
+        int spi_rc = SPI_exec(cmd, 0);
+        if (spi_rc != SPI_OK_DELETE)
+            elog(WARNING, "cache_insert_tuple: SPI_exec(delete) returned %d", spi_rc);
+
         SPI_finish();
+
+        /*
+         * Decrement our counter approximately. If other backends are also
+         * inserting/deleting, this is approximate, but fine for cache control.
+         */
+        entry->count -= excess;
+        if (entry->count < 0)
+            entry->count = 0;
     }
 
-
-	/* Materialize slot and copy tuple */
+    /*
+     * Step 2: Insert the new tuple into the cache table.
+     */
     ExecMaterializeSlot(slot);
     tuple = ExecCopySlotHeapTuple(slot);
 
-    /* Insert into heap and update indexes */
     simple_heap_insert(cache_rel, tuple);
+
+    /* Update approximate count */
+    entry->count++;
+
+    elog(LOG, "cache_insert_tuple: cache %s now has approx %d row(s)",
+         cache_name, entry->count);
 
     table_close(cache_rel, RowExclusiveLock);
 }
@@ -1126,7 +1182,6 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
 
     /* Prepare cache table name */
     snprintf(cache_name, NAMEDATALEN, "%s_cache", foreign_relname);
-
     /* Check if cache table exists */
     cache_relid_global = get_relname_relid(cache_name, foreign_nsp);
     if (cache_relid_global == InvalidOid)
