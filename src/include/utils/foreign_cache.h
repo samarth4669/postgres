@@ -22,4 +22,7 @@ extern void ForeignCacheShmemInit(void);
 /* Lookup or create a CacheEntry for a given cache table OID */
 extern CacheEntry *GetCacheEntryForCacheRel(Oid relid);
 
+extern int RecountCacheTableRows(Oid relid);
+
+
 #endif /* FOREIGN_CACHE_H */

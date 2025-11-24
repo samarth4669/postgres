@@ -1,0 +1,5 @@
+src/backend/commands/foreigncmds.c 
+line 1496 ImportForeignSchema() - working
+
+contrib/postgres_fdw/postgres_fdw.c
+line 5584 postgresImportForeignSchema() - unknown

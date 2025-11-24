@@ -991,9 +991,10 @@ ForeignRecheck(ForeignScanState *node, TupleTableSlot *slot)
  * ----------------------------------------------------------------
  */
 
-TupleTableSlot *
-ExecForeignScan(ForeignScanState *node)
+static TupleTableSlot *
+ExecForeignScan(PlanState *pstate)
 {
+    ForeignScanState *node = castNode(ForeignScanState, pstate);
     EState *estate = node->ss.ps.state;
     TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 

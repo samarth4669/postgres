@@ -139,7 +139,7 @@ store_local_foreign_table_pks(Oid serverOid, const char *remote_schema, const ch
         if (!first)
             appendStringInfoChar(&arr, ',');
         /* Escape double quotes and backslashes in column name per array literal rules */
-        appendStringInfo(&arr, "\"%s\"", escape_identifier(c));
+        appendStringInfo(&arr, "\"%s\"", quote_identifier(c));
         first = false;
     }
     appendStringInfoChar(&arr, '}');
@@ -182,7 +182,7 @@ store_local_foreign_table_pks(Oid serverOid, const char *remote_schema, const ch
 static char *
 quote_literal_cstr_safe(const char *s)
 {
-    return quote_literal_cstr_internal(s); /* if not available, replace with quote_literal(s) usage */
+    return quote_literal_cstr(s); /* if not available, replace with quote_literal(s) usage */
 }
 
 /* Default CPU cost to start up a foreign query. */
