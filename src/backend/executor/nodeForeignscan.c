@@ -1055,38 +1055,38 @@ ExecForeignScan(PlanState *pstate)
             
             TupleTableSlot *cache_slot = NULL;
 
-/* Only check cache if primary key has a single column (attnum == 1) */
-if (key_attnum == 1)
-{
-    cache_slot = lookup_tuple_in_cache(cache_relid_global,
-                                       key_attnum,
-                                       key_const);
+            /* Only check cache if primary key has a single column (attnum == 1) */
+            if (key_attnum == 1)
+            {
+                cache_slot = lookup_tuple_in_cache(cache_relid_global,
+                                                key_attnum,
+                                                key_const);
 
-    if (cache_slot && !TupIsNull(cache_slot))
-    {
-        elog(INFO, "Cache hit found!");
+                if (cache_slot && !TupIsNull(cache_slot))
+                {
+                    elog(INFO, "Cache hit found!");
 
-        node->f_state.cache_returned = true;
+                    node->f_state.cache_returned = true;
 
-        /*
-         * Copy the found tuple into the FDW scan slot.
-         * This avoids leaking TupleDesc and ensures executor consistency.
-         */
-        ExecClearTuple(slot);
-        ExecCopySlot(slot, cache_slot);
-        ExecDropSingleTupleTableSlot(cache_slot);  /* free temporary slot */
+                    /*
+                    * Copy the found tuple into the FDW scan slot.
+                    * This avoids leaking TupleDesc and ensures executor consistency.
+                    */
+                    ExecClearTuple(slot);
+                    ExecCopySlot(slot, cache_slot);
+                    ExecDropSingleTupleTableSlot(cache_slot);  /* free temporary slot */
 
-        return slot;
-    }
-    else
-    {
-        elog(LOG, "Cache miss - falling back to remote fetch.");
-    }
-}
-else
-{
-    elog(LOG, "Skipping cache lookup (multi-column PK or no key_attnum == 1).");
-}
+                    return slot;
+                }
+                else
+                {
+                    elog(LOG, "Cache miss - falling back to remote fetch.");
+                }
+            }
+            else
+            {
+                elog(LOG, "Skipping cache lookup (multi-column PK or no key_attnum == 1).");
+            }
         }
     }
 

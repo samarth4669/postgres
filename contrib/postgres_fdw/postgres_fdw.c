@@ -72,45 +72,83 @@ PG_MODULE_MAGIC;
  * Caller owns the list and should free with list_free_deep() if desired.
  */
 
-// new added 
-/*
- * Fetch primary key column names for a remote table.
- */
+ 
+// new helper function to fetch remote primary keys
 static List *
-fetch_remote_primary_keys(PGconn *conn, PgFdwConnState *state,
-                          const char *nspname, const char *relname)
+fetch_remote_primary_keys(PGconn *conn, const char *schema, const char *table)
 {
+
+	elog(LOG, "fetch_remote_primary_keys: Fetching primary keys for remote table %s.%s", schema, table);
+
+    PGresult   *res;
     StringInfoData sql;
-    PGresult *res;
-    List *pkcols = NIL;
-    int i;
+    List       *pkcols = NIL;
 
     initStringInfo(&sql);
+
     appendStringInfo(&sql,
-        "SELECT a.attname "
-        "FROM pg_index i "
-        "JOIN pg_attribute a ON a.attrelid = i.indrelid "
-        "AND a.attnum = ANY(i.indkey) "
-        "WHERE i.indisprimary "
-        "AND i.indrelid = '%s.%s'::regclass;",
-        quote_identifier(nspname), quote_identifier(relname));
+                     "SELECT a.attname "
+                     "FROM pg_index i "
+                     "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
+                     "WHERE i.indrelid = '%s.%s'::regclass "
+                     "AND i.indisprimary;",
+                     schema, table);
 
-    /* Use FDW helper to execute remote query safely */
-    res = pgfdw_exec_query(conn, sql.data, state);
-
+    res = PQexec(conn, sql.data);
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
-        ereport(ERROR,
-                (errmsg("failed to fetch primary key columns for %s.%s",
-                        nspname, relname)));
+        elog(ERROR, "postgres_fdw: failed to fetch PK columns");
 
-    for (i = 0; i < PQntuples(res); i++)
-        pkcols = lappend(pkcols, pstrdup(PQgetvalue(res, i, 0)));
+    int nrows = PQntuples(res);
+    for (int i = 0; i < nrows; i++)
+    {
+        char *colname = pstrdup(PQgetvalue(res, i, 0));
+        pkcols = lappend(pkcols, colname);
+    }
 
     PQclear(res);
-    pfree(sql.data);
-
     return pkcols;
 }
+
+
+// // new added 
+// /*
+//  * Fetch primary key column names for a remote table.
+//  */
+// static List *
+// fetch_remote_primary_keys(PGconn *conn, PgFdwConnState *state,
+//                           const char *nspname, const char *relname)
+// {
+//     StringInfoData sql;
+//     PGresult *res;
+//     List *pkcols = NIL;
+//     int i;
+
+//     initStringInfo(&sql);
+//     appendStringInfo(&sql,
+//         "SELECT a.attname "
+//         "FROM pg_index i "
+//         "JOIN pg_attribute a ON a.attrelid = i.indrelid "
+//         "AND a.attnum = ANY(i.indkey) "
+//         "WHERE i.indisprimary "
+//         "AND i.indrelid = '%s.%s'::regclass;",
+//         quote_identifier(nspname), quote_identifier(relname));
+
+//     /* Use FDW helper to execute remote query safely */
+//     res = pgfdw_exec_query(conn, sql.data, state);
+
+//     if (PQresultStatus(res) != PGRES_TUPLES_OK)
+//         ereport(ERROR,
+//                 (errmsg("failed to fetch primary key columns for %s.%s",
+//                         nspname, relname)));
+
+//     for (i = 0; i < PQntuples(res); i++)
+//         pkcols = lappend(pkcols, pstrdup(PQgetvalue(res, i, 0)));
+
+//     PQclear(res);
+//     pfree(sql.data);
+
+//     return pkcols;
+// }
 
 /* ---------- Helper: store pk list into local catalog table using SPI ---------- */
 /*
@@ -5848,6 +5886,38 @@ postgresImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 				   strcmp(PQgetvalue(res, i, 0), tablename) == 0);
 
 			/*
+			 * Add primary key constraint if any
+			 */
+
+			elog(LOG, "postgresImportForeignSchema: fetching PK for table %s", tablename);
+
+			/* Fetch PK columns */
+			List *pkcols = fetch_remote_primary_keys(conn, stmt->remote_schema, tablename);
+
+			// /* If PK exists, add PRIMARY KEY clause */
+			// if (pkcols != NIL)
+			// {
+			// 	bool first = true;
+			// 	ListCell *lc;
+
+			// 	appendStringInfoString(&buf, ",\n  PRIMARY KEY (");
+
+			// 	foreach(lc, pkcols)
+			// 	{
+			// 		char *col = (char *) lfirst(lc);
+
+			// 		if (!first)
+			// 			appendStringInfoString(&buf, ", ");
+			// 		first = false;
+
+			// 		appendStringInfoString(&buf, quote_identifier(col));
+			// 	}
+
+			// 	appendStringInfoString(&buf, ")");
+			// }
+
+
+			/*
 			 * Add server name and table-level options.  We specify remote
 			 * schema and table name as options (the latter to ensure that
 			 * renaming the foreign table doesn't break the association).
@@ -5862,8 +5932,9 @@ postgresImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 
 			appendStringInfoString(&buf, ");");
 			//added
-			elog(LOG, "executing---");
-			List *pkcols = fetch_remote_primary_keys(conn, NULL, stmt->remote_schema, tablename);
+			// elog(LOG, "executing---");
+			elog(LOG, "Storing foreign table PKs for table %s", tablename);
+			// List *pkcols = fetch_remote_primary_keys(conn, NULL, stmt->remote_schema, tablename);
 			if (pkcols != NIL)
 			{
 				store_local_foreign_table_pks(serverOid, stmt->remote_schema, tablename, pkcols);

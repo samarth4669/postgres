@@ -1,1 +1,1 @@
-/Users/adityaupadhye/pg_build/caching-postgres/bin/pg_ctl -D /Users/adityaupadhye/pg_build/caching-postgres/data -l logfile start
+/Users/adityaupadhye/pg_build/caching-postgres/bin/pg_ctl -D /Users/adityaupadhye/pg_build/caching-postgres/data -l logfile.log start
