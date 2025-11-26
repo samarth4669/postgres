@@ -110,46 +110,6 @@ fetch_remote_primary_keys(PGconn *conn, const char *schema, const char *table)
 }
 
 
-// // new added 
-// /*
-//  * Fetch primary key column names for a remote table.
-//  */
-// static List *
-// fetch_remote_primary_keys(PGconn *conn, PgFdwConnState *state,
-//                           const char *nspname, const char *relname)
-// {
-//     StringInfoData sql;
-//     PGresult *res;
-//     List *pkcols = NIL;
-//     int i;
-
-//     initStringInfo(&sql);
-//     appendStringInfo(&sql,
-//         "SELECT a.attname "
-//         "FROM pg_index i "
-//         "JOIN pg_attribute a ON a.attrelid = i.indrelid "
-//         "AND a.attnum = ANY(i.indkey) "
-//         "WHERE i.indisprimary "
-//         "AND i.indrelid = '%s.%s'::regclass;",
-//         quote_identifier(nspname), quote_identifier(relname));
-
-//     /* Use FDW helper to execute remote query safely */
-//     res = pgfdw_exec_query(conn, sql.data, state);
-
-//     if (PQresultStatus(res) != PGRES_TUPLES_OK)
-//         ereport(ERROR,
-//                 (errmsg("failed to fetch primary key columns for %s.%s",
-//                         nspname, relname)));
-
-//     for (i = 0; i < PQntuples(res); i++)
-//         pkcols = lappend(pkcols, pstrdup(PQgetvalue(res, i, 0)));
-
-//     PQclear(res);
-//     pfree(sql.data);
-
-//     return pkcols;
-// }
-
 /* ---------- Helper: store pk list into local catalog table using SPI ---------- */
 /*
  * store_local_foreign_table_pks(serverOid, remote_schema, relname, pkcols)
@@ -5893,28 +5853,6 @@ postgresImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 
 			/* Fetch PK columns */
 			List *pkcols = fetch_remote_primary_keys(conn, stmt->remote_schema, tablename);
-
-			// /* If PK exists, add PRIMARY KEY clause */
-			// if (pkcols != NIL)
-			// {
-			// 	bool first = true;
-			// 	ListCell *lc;
-
-			// 	appendStringInfoString(&buf, ",\n  PRIMARY KEY (");
-
-			// 	foreach(lc, pkcols)
-			// 	{
-			// 		char *col = (char *) lfirst(lc);
-
-			// 		if (!first)
-			// 			appendStringInfoString(&buf, ", ");
-			// 		first = false;
-
-			// 		appendStringInfoString(&buf, quote_identifier(col));
-			// 	}
-
-			// 	appendStringInfoString(&buf, ")");
-			// }
 
 
 			/*

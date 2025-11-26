@@ -228,88 +228,10 @@ static void print_where_clause(Node *node, List *rtable)
     }
   
 	else if (IsA(node, ScalarArrayOpExpr))
-{
-    ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) node;
-    elog(LOG, "Found ScalarArrayOpExpr (IN/ALL) operator");
-
-    //  if (list_length(saop->args) == 2)
-    // {
-    //     Node *left = linitial(saop->args);
-    //     Node *right = lsecond(saop->args);
-
-    //     /* Column */
-    //     if (IsA(left, Var))
-    //     {
-    //         Var *var = (Var *) left;
-    //         RangeTblEntry *rte = rt_fetch(var->varno, rtable);
-    //         if (rte && rte->rtekind == RTE_RELATION)
-    //         {
-    //             const char *relname = get_rel_name(rte->relid);
-    //             const char *attname = get_attname(rte->relid, var->varattno, false);
-    //             elog(LOG, "Column: %s.%s", relname, attname);
-    //         }
-    //     }
-
-    //     /* Right-hand side can be a Const holding an array */
-    //     if (IsA(right, Const))
-    //     {
-    //         Const *c = (Const *) right;
-
-    //         if (!c->constisnull)
-    //         {
-    //             Datum *elems;
-    //             int nelems;
-    //             Oid element_type;
-
-    //             /* Extract array elements */
-    //             if (ARR_DIMS(c->constvalue)[0] > 0) /* safety check */
-    //             {
-    //                 deconstruct_array(c->constvalue,
-    //                                   ARR_ELEMTYPE(c->constvalue),
-    //                                   -1,   /* typelen unknown, -1 lets system figure out */
-    //                                   true, /* byval */
-    //                                   'i',  /* alignment; adjust if needed */
-    //                                   &elems,
-    //                                   NULL,
-    //                                   &nelems);
-
-    //                 for (int i = 0; i < nelems; i++)
-    //                 {
-    //                     Oid typoutput;
-    //                     bool typisvarlena;
-    //                     getTypeOutputInfo(ARR_ELEMTYPE(c->constvalue), &typoutput, &typisvarlena);
-    //                     char *valstr = OidOutputFunctionCall(typoutput, elems[i]);
-    //                     elog(LOG, "[IN] Element %d: %s", i, valstr);
-    //                 }
-    //             }
-    //         }
-    //         else
-    //         {
-    //             elog(LOG, "[IN] Value is NULL");
-    //         }
-    //     }
-    //     else if (IsA(right, ArrayExpr))
-    //     {
-	// 		  ArrayExpr *arr = (ArrayExpr *) right;
-    //         ListCell *lc;
-    //         int idx = 0;
-
-    //         foreach(lc, arr->elements)
-    //         {
-    //             Const *c = (Const *) lfirst(lc);
-    //             Oid typoutput;
-    //             bool typisvarlena;
-    //             getTypeOutputInfo(c->consttype, &typoutput, &typisvarlena);
-    //             char *valstr = OidOutputFunctionCall(typoutput, c->constvalue);
-    //             elog(LOG, "[IN] Element %d: %s (type OID: %u)", idx++, valstr, c->consttype);
-    //         }
-    //         /* your old ArrayExpr handling here */
-    //     }
-    // }
-}
-
-    
-	
+    {
+        ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) node;
+        elog(LOG, "Found ScalarArrayOpExpr (IN/ALL) operator");
+    }
 	else
     {
         elog(LOG, "Unhandled node type in WHERE clause: %d", nodeTag(node));
@@ -450,14 +372,14 @@ check_simple_equality(Node *node, List *rtable)
 int check_where_clause_exist(Query *query){
 
 	FromExpr *fromExpr = (FromExpr *) query->jointree;
-        if (fromExpr && fromExpr->quals)
-        {
-			return 1;
-		}
-        else
-        {
-			return 0;
-		}
+    if (fromExpr && fromExpr->quals)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 void
@@ -644,138 +566,6 @@ KeyLookupInfo *find_query(Node *node, List *rtable)
 }
 
 
-
-/*
- * Lookup a tuple in cache table using equality scan on single column
- *
- * Inputs:
- *   cache_rel_oid   - OID of cache table
- *   attnum          - attribute number to match
- *   val             - Datum value to compare
- *   typid           - OID of attribute type (e.g., INT4OID)
- *   eq_op           - OID of equality operator for this type (e.g., 96 for int4)
- *
- * Returns:
- *   TupleTableSlot* with tuple if found
- *   NULL if not found
- */
-// TupleTableSlot *
-// lookup_tuple_in_cache(Oid cache_rel_oid, AttrNumber attnum, Datum key_val)
-// {
-   
-//     HeapTuple       tuple;
-
-//     Relation rel = table_open(cache_rel_oid, AccessShareLock);
-// TupleDesc tupdesc = RelationGetDescr(rel);
-
-// TableScanDesc scan = table_beginscan_catalog(rel, 0, NULL);
-// if (!scan)
-//     elog(ERROR, "Failed to begin scan on cache table");
-
-// TupleTableSlot *slot = MakeSingleTupleTableSlot(tupdesc, &TTSOpsHeapTuple);
-
-// while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-// {
-//     Datum val;
-//     bool isnull;
-//     val = heap_getattr(tuple, attnum, tupdesc, &isnull);
-
-//     if (!isnull && DatumGetInt32(val) == DatumGetInt32(key_val))
-//     {
-//         ExecStoreHeapTuple(tuple, slot, false);
-//         break;
-//     }
-// }
-
-// heap_endscan(scan);
-// table_close(rel, AccessShareLock);
-// return slot;
-// }
-
-/*
-* Old Impl with memory leak
-*/
-// TupleTableSlot *
-// lookup_tuple_in_cache(Oid cache_rel_oid, AttrNumber attnum, Const *key_const)
-// {
-//     Relation rel = table_open(cache_rel_oid, AccessShareLock);
-//     TupleDesc tupdesc = RelationGetDescr(rel);
-
-//     TableScanDesc scan = table_beginscan_catalog(rel, 0, NULL);
-//     if (!scan)
-//         elog(ERROR, "Failed to begin scan on cache table");
-
-//     TupleTableSlot *slot = MakeSingleTupleTableSlot(tupdesc, &TTSOpsHeapTuple);
-//     HeapTuple tuple;
-
-//     Oid key_type = key_const->consttype;
-//     Datum key_val = key_const->constvalue;
-//     bool key_isnull = key_const->constisnull;
-
-//     if (key_isnull)
-//     {
-//         elog(LOG, "Key value is NULL, skipping lookup");
-//         heap_endscan(scan);
-//         table_close(rel, AccessShareLock);
-//         return NULL;
-//     }
-
-//     /* For logging */
-//     Oid typoutput;
-//     bool typisvarlena;
-//     getTypeOutputInfo(key_type, &typoutput, &typisvarlena);
-//     char *key_str = OidOutputFunctionCall(typoutput, key_val);
-//     elog(LOG, "Cache lookup start: attnum=%d, type=%u, value=%s", attnum, key_type, key_str);
-
-//     while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-//     {
-//         Datum val;
-//         bool isnull;
-
-//         val = heap_getattr(tuple, attnum, tupdesc, &isnull);
-//         if (isnull)
-//             continue;
-
-//         bool match = false;
-
-//         switch (key_type)
-//         {
-//             case INT4OID:
-//             {
-//                 int32 tuple_val = DatumGetInt32(val);
-//                 int32 const_val = DatumGetInt32(key_val);
-//                 match = (tuple_val == const_val);
-//                 break;
-//             }
-
-//             case TEXTOID:
-//             {
-//                 text *tuple_text = DatumGetTextPP(val);
-//                 text *const_text = DatumGetTextPP(key_val);
-//                 match = (strcmp(text_to_cstring(tuple_text),
-//                                 text_to_cstring(const_text)) == 0);
-//                 break;
-//             }
-
-//             default:
-//                 elog(WARNING, "Unsupported key type: %u", key_type);
-//                 break;
-//         }
-
-//         if (match)
-//         {
-//             elog(LOG, "Cache hit for key value: %s", key_str);
-//             ExecStoreHeapTuple(tuple, slot, false);
-//             break;
-//         }
-//     }
-
-//     heap_endscan(scan);
-//     table_close(rel, AccessShareLock);
-//     return slot;
-// }
-
-
 /* file: nodeForeignScan.c  OR foreign_cache.c */
 
 /* Prototype (put near top of file, or in foreign_cache.h if used externally) */
@@ -923,46 +713,6 @@ cache_insert_tuple(TupleTableSlot *slot, ForeignScanState *node)
     int current = entry->count;
 
 	int rowcount = 0;
-
-	/* Begin catalog table scan */
-	// scan = table_beginscan_catalog(cache_rel, 0, NULL);
-
-	// /* Iterate over tuples */
-	// while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-	// {
-	// 	rowcount++;
-	// }
-
-	// /* End scan */
-	// table_endscan(scan);
-	// elog(LOG, "row_count:%d", rowcount);
-	// if (rowcount >= 10)
-    // {
-    //     SPI_connect();
-	// 	const char *schema_name = get_namespace_name(RelationGetNamespace(cache_rel));
-	// 	const char *rel_name = RelationGetRelationName(cache_rel);
-    //             char cmd[512];
-
-	// 	snprintf(cmd, sizeof(cmd),
-	// 			"DELETE FROM %s.%s WHERE ctid IN "
-	// 			"(SELECT ctid FROM %s.%s ORDER BY ctid ASC LIMIT %d)",
-	// 			schema_name, rel_name,
-	// 			schema_name, rel_name,
-	// 			rowcount - 10 + 1);
-        
-    //     SPI_exec(cmd, 0);
-    //     SPI_finish();
-    // }
-
-
-	// /* Materialize slot and copy tuple */
-    // ExecMaterializeSlot(slot);
-    // tuple = ExecCopySlotHeapTuple(slot);
-
-    // /* Insert into heap and update indexes */
-    // simple_heap_insert(cache_rel, tuple);
-
-    // table_close(cache_rel, RowExclusiveLock);
     elog(LOG, "tuple%d",current);
 
     if (current >=3 )
@@ -1150,15 +900,7 @@ ExecForeignScan(PlanState *pstate)
 				key_attnum = info->key_attnum;
                 key_const = info->key_const;
 
-				// /* Copy the actual value, not the string */
-				// key_const->consttype   = c->consttype;
-				// key_const->consttypmod = c->consttypmod;
-				// key_const->constcollid = c->constcollid;
-				// key_const->constlen    = c->constlen;
-				// key_const->constisnull = c->constisnull;
-				// key_const->constvalue  = c->constvalue;  /* ✅ Correct: copy the Datum itself */
 			}
-			// elog(LOG, "Looking up in cache table oid=%u, attnum=%d, constvalue=%d", cache_relid_global, key_attnum,key_const->constvalue);
             elog(LOG, "Looking up in cache table oid=%u, attnum=%d, constvalue=%lu",
                 cache_relid_global,
                 key_attnum,
@@ -1192,39 +934,6 @@ ExecForeignScan(PlanState *pstate)
             {
                 elog(DEBUG2, "ExecForeignScan: skipping cache lookup (multi-column PK or unexpected attnum)");
             }
-
-            /* Only check cache if primary key has a single column (attnum == 1) */
-            // if (key_attnum == 1)
-            // {
-            //     cache_slot = lookup_tuple_in_cache(cache_relid_global,
-            //                                     key_attnum,
-            //                                     key_const);
-
-            //     if (cache_slot && !TupIsNull(cache_slot))
-            //     {
-            //         elog(INFO, "Cache hit found!");
-
-            //         node->f_state.cache_returned = true;
-
-            //         /*
-            //         * Copy the found tuple into the FDW scan slot.
-            //         * This avoids leaking TupleDesc and ensures executor consistency.
-            //         */
-            //         ExecClearTuple(slot);
-            //         ExecCopySlot(slot, cache_slot);
-            //         ExecDropSingleTupleTableSlot(cache_slot);  /* free temporary slot */
-
-            //         return slot;
-            //     }
-            //     else
-            //     {
-            //         elog(LOG, "Cache miss - falling back to remote fetch.");
-            //     }
-            // }
-            // else
-            // {
-            //     elog(LOG, "Skipping cache lookup (multi-column PK or no key_attnum == 1).");
-            // }
         }
     }
 
@@ -1345,40 +1054,6 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
     {
         elog(WARNING, "Relation %u has no primary key", relid);
     }
-    //find_query(estate->origQuery->jointree->quals, estate->origQuery->rtable);
-
- 
-    // elog(LOG, "---- Inspecting Query ----");
-	// if(estate->origQuery->commandType == CMD_SELECT){
-	// 	int out = check_where_clause_exist(estate->origQuery);
-		
-	// 	if(out==1){
-	// 		FromExpr *fromExpr = (FromExpr *) estate->origQuery->jointree;
-
-	// 		bool out = check_simple_equality(fromExpr->quals, estate->origQuery->rtable);
-	// 		if(out){
-	// 			elog(LOG, "where lookup query");
-	// 			const char *cache_table = get_and_log_cache_table_name(estate);
-	// 			const char *schema = get_and_log_cache_table_space(estate);
-				
-	// 			/* Create a RangeVar for the cache table (no schema specified here) */
-	// 			RangeVar *cache_rv = makeRangeVar((char *)schema, (char *)cache_table, -1);
-	// 			Oid cache_relid = RangeVarGetRelid(cache_rv, NoLock, false);
-    //             elog(LOG, "Cache table OID: %u", cache_relid);
-				
-
-	// 		}
-	// 		else{
-	// 			elog(LOG, "where  not lookup query");
-
-
-	// 		}
-
-
-	// 	}
-		
-
-	// }
 
 	/*
 	 * Determine the scan tuple type.  If the FDW provided a targetlist
