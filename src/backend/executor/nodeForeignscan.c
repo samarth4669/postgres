@@ -113,6 +113,8 @@
 #include "utils/lsyscache.h"
 #include "nodes/pg_list.h"
 #include "utils/foreign_cache.h"
+
+
 static Oid cache_relid_global = InvalidOid;
 
 typedef struct KeyLookupInfo
@@ -690,49 +692,148 @@ KeyLookupInfo *find_query(Node *node, List *rtable)
 // return slot;
 // }
 
+/*
+* Old Impl with memory leak
+*/
+// TupleTableSlot *
+// lookup_tuple_in_cache(Oid cache_rel_oid, AttrNumber attnum, Const *key_const)
+// {
+//     Relation rel = table_open(cache_rel_oid, AccessShareLock);
+//     TupleDesc tupdesc = RelationGetDescr(rel);
 
-TupleTableSlot *
+//     TableScanDesc scan = table_beginscan_catalog(rel, 0, NULL);
+//     if (!scan)
+//         elog(ERROR, "Failed to begin scan on cache table");
+
+//     TupleTableSlot *slot = MakeSingleTupleTableSlot(tupdesc, &TTSOpsHeapTuple);
+//     HeapTuple tuple;
+
+//     Oid key_type = key_const->consttype;
+//     Datum key_val = key_const->constvalue;
+//     bool key_isnull = key_const->constisnull;
+
+//     if (key_isnull)
+//     {
+//         elog(LOG, "Key value is NULL, skipping lookup");
+//         heap_endscan(scan);
+//         table_close(rel, AccessShareLock);
+//         return NULL;
+//     }
+
+//     /* For logging */
+//     Oid typoutput;
+//     bool typisvarlena;
+//     getTypeOutputInfo(key_type, &typoutput, &typisvarlena);
+//     char *key_str = OidOutputFunctionCall(typoutput, key_val);
+//     elog(LOG, "Cache lookup start: attnum=%d, type=%u, value=%s", attnum, key_type, key_str);
+
+//     while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
+//     {
+//         Datum val;
+//         bool isnull;
+
+//         val = heap_getattr(tuple, attnum, tupdesc, &isnull);
+//         if (isnull)
+//             continue;
+
+//         bool match = false;
+
+//         switch (key_type)
+//         {
+//             case INT4OID:
+//             {
+//                 int32 tuple_val = DatumGetInt32(val);
+//                 int32 const_val = DatumGetInt32(key_val);
+//                 match = (tuple_val == const_val);
+//                 break;
+//             }
+
+//             case TEXTOID:
+//             {
+//                 text *tuple_text = DatumGetTextPP(val);
+//                 text *const_text = DatumGetTextPP(key_val);
+//                 match = (strcmp(text_to_cstring(tuple_text),
+//                                 text_to_cstring(const_text)) == 0);
+//                 break;
+//             }
+
+//             default:
+//                 elog(WARNING, "Unsupported key type: %u", key_type);
+//                 break;
+//         }
+
+//         if (match)
+//         {
+//             elog(LOG, "Cache hit for key value: %s", key_str);
+//             ExecStoreHeapTuple(tuple, slot, false);
+//             break;
+//         }
+//     }
+
+//     heap_endscan(scan);
+//     table_close(rel, AccessShareLock);
+//     return slot;
+// }
+
+
+/* file: nodeForeignScan.c  OR foreign_cache.c */
+
+/* Prototype (put near top of file, or in foreign_cache.h if used externally) */
+static HeapTuple lookup_tuple_in_cache(Oid cache_rel_oid, AttrNumber attnum, Const *key_const);
+
+/* Implementation */
+static HeapTuple
 lookup_tuple_in_cache(Oid cache_rel_oid, AttrNumber attnum, Const *key_const)
 {
-    Relation rel = table_open(cache_rel_oid, AccessShareLock);
-    TupleDesc tupdesc = RelationGetDescr(rel);
+    Relation    rel;
+    TupleDesc   tupdesc;
+    TableScanDesc scan;
+    HeapTuple   tuple;
+    HeapTuple   result = NULL;
 
-    TableScanDesc scan = table_beginscan_catalog(rel, 0, NULL);
-    if (!scan)
-        elog(ERROR, "Failed to begin scan on cache table");
+    Oid         key_type;
+    Datum       key_val;
+    bool        key_isnull;
 
-    TupleTableSlot *slot = MakeSingleTupleTableSlot(tupdesc, &TTSOpsHeapTuple);
-    HeapTuple tuple;
-
-    Oid key_type = key_const->consttype;
-    Datum key_val = key_const->constvalue;
-    bool key_isnull = key_const->constisnull;
-
-    if (key_isnull)
-    {
-        elog(LOG, "Key value is NULL, skipping lookup");
-        heap_endscan(scan);
-        table_close(rel, AccessShareLock);
-        return NULL;
-    }
-
-    /* For logging */
     Oid typoutput;
     bool typisvarlena;
+    char *key_str = NULL;
+
+    /* Defensive checks */
+    if (!OidIsValid(cache_rel_oid) || attnum <= 0 || key_const == NULL)
+        return NULL;
+
+    key_type = key_const->consttype;
+    key_val  = key_const->constvalue;
+    key_isnull = key_const->constisnull;
+
+    if (key_isnull)
+        return NULL;
+
+    /* open relation and begin scan */
+    rel = table_open(cache_rel_oid, AccessShareLock);
+    tupdesc = RelationGetDescr(rel);
+
+    scan = table_beginscan_catalog(rel, 0, NULL);
+    if (!scan)
+    {
+        table_close(rel, AccessShareLock);
+        elog(ERROR, "lookup_tuple_in_cache: failed to begin scan on cache table");
+    }
+
+    /* optional human-readable key for logs */
     getTypeOutputInfo(key_type, &typoutput, &typisvarlena);
-    char *key_str = OidOutputFunctionCall(typoutput, key_val);
-    elog(LOG, "Cache lookup start: attnum=%d, type=%u, value=%s", attnum, key_type, key_str);
+    key_str = OidOutputFunctionCall(typoutput, key_val);
 
     while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
     {
         Datum val;
         bool isnull;
+        bool match = false;
 
         val = heap_getattr(tuple, attnum, tupdesc, &isnull);
         if (isnull)
             continue;
-
-        bool match = false;
 
         switch (key_type)
         {
@@ -754,22 +855,28 @@ lookup_tuple_in_cache(Oid cache_rel_oid, AttrNumber attnum, Const *key_const)
             }
 
             default:
-                elog(WARNING, "Unsupported key type: %u", key_type);
+                elog(DEBUG1, "lookup_tuple_in_cache: unsupported key type: %u", key_type);
                 break;
         }
 
         if (match)
         {
-            elog(LOG, "Cache hit for key value: %s", key_str);
-            ExecStoreHeapTuple(tuple, slot, false);
+            /* copy tuple so it outlives the scan's buffer */
+            result = heap_copytuple(tuple);
+            elog(INFO, "Cache hit for key value: %s", key_str);
             break;
         }
     }
 
+    if (key_str)
+        pfree(key_str);
+
     heap_endscan(scan);
     table_close(rel, AccessShareLock);
-    return slot;
+
+    return result; /* caller must store/free it */
 }
+
 
 
 #include "postgres.h"
@@ -1051,42 +1158,73 @@ ExecForeignScan(PlanState *pstate)
 				// key_const->constisnull = c->constisnull;
 				// key_const->constvalue  = c->constvalue;  /* ✅ Correct: copy the Datum itself */
 			}
-			elog(LOG, "Looking up in cache table oid=%u, attnum=%d, constvalue=%d", cache_relid_global, key_attnum,key_const->constvalue);
+			// elog(LOG, "Looking up in cache table oid=%u, attnum=%d, constvalue=%d", cache_relid_global, key_attnum,key_const->constvalue);
+            elog(LOG, "Looking up in cache table oid=%u, attnum=%d, constvalue=%lu",
+                cache_relid_global,
+                key_attnum,
+                (unsigned long) DatumGetUInt32(key_const->constvalue));
+
             
             TupleTableSlot *cache_slot = NULL;
 
-            /* Only check cache if primary key has a single column (attnum == 1) */
-            if (key_attnum == 1)
+            /* inside ExecForeignScan, top of function ensure variables declared early */
+            HeapTuple cache_ht = NULL;
+
+            if (key_attnum == 1)   /* use your metadata to compute expected_pk_attnum */
             {
-                cache_slot = lookup_tuple_in_cache(cache_relid_global,
-                                                key_attnum,
-                                                key_const);
+                cache_ht = lookup_tuple_in_cache(cache_relid_global, key_attnum, key_const);
 
-                if (cache_slot && !TupIsNull(cache_slot))
+                if (cache_ht != NULL)
                 {
-                    elog(INFO, "Cache hit found!");
-
-                    node->f_state.cache_returned = true;
-
-                    /*
-                    * Copy the found tuple into the FDW scan slot.
-                    * This avoids leaking TupleDesc and ensures executor consistency.
-                    */
+                    /* store tuple into FDW scan slot; slot will free tuple when cleared */
                     ExecClearTuple(slot);
-                    ExecCopySlot(slot, cache_slot);
-                    ExecDropSingleTupleTableSlot(cache_slot);  /* free temporary slot */
-
+                    ExecStoreHeapTuple(cache_ht, slot, true);  /* true => slot will free the tuple */
+                    node->f_state.cache_returned = true;
+                    elog(DEBUG2, "ExecForeignScan: cache hit returned for rel %u", cache_relid_global);
                     return slot;
                 }
                 else
                 {
-                    elog(LOG, "Cache miss - falling back to remote fetch.");
+                    elog(DEBUG2, "ExecForeignScan: cache miss, falling back to remote fetch");
                 }
             }
-            else
+            else 
             {
-                elog(LOG, "Skipping cache lookup (multi-column PK or no key_attnum == 1).");
+                elog(DEBUG2, "ExecForeignScan: skipping cache lookup (multi-column PK or unexpected attnum)");
             }
+
+            /* Only check cache if primary key has a single column (attnum == 1) */
+            // if (key_attnum == 1)
+            // {
+            //     cache_slot = lookup_tuple_in_cache(cache_relid_global,
+            //                                     key_attnum,
+            //                                     key_const);
+
+            //     if (cache_slot && !TupIsNull(cache_slot))
+            //     {
+            //         elog(INFO, "Cache hit found!");
+
+            //         node->f_state.cache_returned = true;
+
+            //         /*
+            //         * Copy the found tuple into the FDW scan slot.
+            //         * This avoids leaking TupleDesc and ensures executor consistency.
+            //         */
+            //         ExecClearTuple(slot);
+            //         ExecCopySlot(slot, cache_slot);
+            //         ExecDropSingleTupleTableSlot(cache_slot);  /* free temporary slot */
+
+            //         return slot;
+            //     }
+            //     else
+            //     {
+            //         elog(LOG, "Cache miss - falling back to remote fetch.");
+            //     }
+            // }
+            // else
+            // {
+            //     elog(LOG, "Skipping cache lookup (multi-column PK or no key_attnum == 1).");
+            // }
         }
     }
 
@@ -1117,17 +1255,6 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
     
 	MyFdwScanState *myfdw_state = palloc0(sizeof(MyFdwScanState));
     myfdw_state->cache_returned = false;
-	
-
-
-
-
-
-
-
-
-
-
 
 
 	/* check for unsupported flags */
@@ -1163,12 +1290,6 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
 		/* We can't use the relcache, so get fdwroutine the hard way */
 		fdwroutine = GetFdwRoutineByServerId(node->fs_server);
 	}
-	
-
-	
-    
-
-		
 
 
     /* Open the foreign relation */
@@ -1220,10 +1341,10 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
     table_close(foreign_rel, AccessShareLock);
 	Bitmapset *pk_attnums = get_primary_key_attnums(relid);
 
-if (pk_attnums == NULL)
-{
-    elog(WARNING, "Relation %u has no primary key", relid);
-}
+    if (pk_attnums == NULL)
+    {
+        elog(WARNING, "Relation %u has no primary key", relid);
+    }
     //find_query(estate->origQuery->jointree->quals, estate->origQuery->rtable);
 
  
@@ -1258,31 +1379,6 @@ if (pk_attnums == NULL)
 		
 
 	// }
-	
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 	/*
 	 * Determine the scan tuple type.  If the FDW provided a targetlist
